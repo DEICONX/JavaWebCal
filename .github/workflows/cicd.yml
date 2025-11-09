@@ -5,7 +5,7 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
-  workflow_dispatch: {}
+  workflow_dispatch:
 
 jobs:
   build-test-sonar-deploy:
@@ -43,22 +43,9 @@ jobs:
 
     # Step 5: Configure Maven settings for Nexus
     - name: Configure Maven settings.xml
-      env:
-        NEXUS_USERNAME: ${{ secrets.NEXUS_USERNAME }}
-        NEXUS_PASSWORD: ${{ secrets.NEXUS_PASSWORD }}
       run: |
         mkdir -p ~/.m2
-        cat > ~/.m2/settings.xml <<EOF
-<settings>
-  <servers>
-    <server>
-      <id>JAVA</id>
-      <username>${NEXUS_USERNAME}</username>
-      <password>${NEXUS_PASSWORD}</password>
-    </server>
-  </servers>
-</settings>
-EOF
+        echo '<settings><servers><server><id>JAVA</id><username>'"${{ secrets.NEXUS_USERNAME }}"'</username><password>'"${{ secrets.NEXUS_PASSWORD }}"'</password></server></servers></settings>' > ~/.m2/settings.xml
 
     # Step 6: Deploy to Nexus
     - name: Deploy to Nexus
