@@ -67,6 +67,7 @@
     <repository>
       <id>JAVA</id>
       <url>http://98.84.152.62:8081/repository/JAVA/</url>
+      <name>Nexus Repository</name>
     </repository>
   </distributionManagement>
 
