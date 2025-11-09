@@ -3,8 +3,6 @@ name: Maven CI-CD (Build • SonarQube • Nexus • Tomcat)
 on:
   push:
     branches: [ main ]
-  pull_request:
-    branches: [ main ]
   workflow_dispatch: {}
 
 jobs:
@@ -25,22 +23,12 @@ jobs:
     - name: Build & Test
       run: mvn -B clean verify
 
-    # ---- SONARQUBE ANALYSIS ----
+    # SonarQube
     - name: SonarQube Analysis
-      env:
-        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-      run: |
-        if [ -z "${SONAR_TOKEN}" ]; then
-          echo "ERROR: SONAR_TOKEN secret missing." >&2
-          exit 1
-        fi
-        mvn -B sonar:sonar -Dsonar.login="${SONAR_TOKEN}" -Dsonar.host.url="http://3.83.229.38:9000"
+      run: mvn -B sonar:sonar -Dsonar.login="${{ secrets.SONAR_TOKEN }}" -Dsonar.host.url="http://3.83.229.38:9000"
 
-    # ---- NEXUS DEPLOY ----
+    # Configure Maven settings
     - name: Configure Maven settings.xml
-      env:
-        NEXUS_USERNAME: ${{ secrets.NEXUS_USERNAME }}
-        NEXUS_PASSWORD: ${{ secrets.NEXUS_PASSWORD }}
       run: |
         mkdir -p ~/.m2
         cat > ~/.m2/settings.xml <<EOF
@@ -48,8 +36,8 @@ jobs:
   <servers>
     <server>
       <id>JAVA</id>
-      <username>${NEXUS_USERNAME}</username>
-      <password>${NEXUS_PASSWORD}</password>
+      <username>${{ secrets.NEXUS_USERNAME }}</username>
+      <password>${{ secrets.NEXUS_PASSWORD }}</password>
     </server>
   </servers>
 </settings>
@@ -58,33 +46,10 @@ EOF
     - name: Deploy to Nexus
       run: mvn -B deploy
 
-    # ---- TOMCAT DEPLOY ----
+    # Deploy to Tomcat
     - name: Deploy WAR to Tomcat
-      env:
-        TOMCAT_USER: ${{ secrets.TOMCAT_USERNAME }}
-        TOMCAT_PASS: ${{ secrets.TOMCAT_PASSWORD }}
-        TOMCAT_HOST: 54.242.176.6
-        TOMCAT_CONTEXT_PATH: /JavaWebApp
       run: |
         WAR_FILE=$(ls target/*.war | head -n1)
-        if [ -z "$WAR_FILE" ]; then
-          echo "WAR file not found!" >&2
-          exit 1
-        fi
-
-        # Undeploy if exists
-        curl -sS -u "${TOMCAT_USER}:${TOMCAT_PASS}" \
-          "http://${TOMCAT_HOST}:8080/manager/text/undeploy?path=${TOMCAT_CONTEXT_PATH}" || true
-
-        # Deploy WAR
-        curl -sS -u "${TOMCAT_USER}:${TOMCAT_PASS}" \
+        curl -sS -u "${{ secrets.TOMCAT_USERNAME }}:${{ secrets.TOMCAT_PASSWORD }}" \
           --upload-file "$WAR_FILE" \
-          "http://${TOMCAT_HOST}:8080/manager/text/deploy?path=${TOMCAT_CONTEXT_PATH}&update=true"
-
-    # ---- Upload WAR artifact ----
-    - name: Upload WAR artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: webapp-war
-        path: target/*.war
-        if-no-files-found: warn
+          "http://54.242.176.6:8080/manager/text/deploy?path=/JavaWebApp&update=true"
