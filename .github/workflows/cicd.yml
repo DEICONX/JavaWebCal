@@ -1,0 +1,85 @@
+name: Maven CI-CD (Build • SonarQube • Nexus • Tomcat)
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-test-sonar-nexus-tomcat:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        cache: 'maven'
+
+    - name: Build & Test
+      run: mvn -B clean verify
+
+    - name: SonarQube Scan
+      env:
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      run: |
+        mvn -B sonar:sonar \
+          -Dsonar.login="${SONAR_TOKEN}" \
+          -Dsonar.host.url="http://3.83.229.38:9000" \
+          -Dsonar.projectKey="JavaWebApp"
+
+    - name: Extract Nexus Credentials
+      env:
+        CREDS: ${{ secrets.NEXUS_CRED }}
+      run: |
+        echo "$CREDS" > nexus.env
+        set -a
+        source nexus.env
+        set +a
+
+    - name: Configure settings.xml for Nexus Deploy
+      run: |
+        mkdir -p ~/.m2
+        cat > ~/.m2/settings.xml <<EOF
+        <settings>
+          <servers>
+            <server>
+              <id>maven-releases</id>
+              <username>${NEXUS_USERNAME}</username>
+              <password>${NEXUS_PASSWORD}</password>
+            </server>
+          </servers>
+        </settings>
+        EOF
+
+    - name: Deploy Artifact to Nexus
+      run: mvn -B deploy
+
+    - name: Extract Tomcat Credentials
+      env:
+        CREDS: ${{ secrets.TOMCAT_CRED }}
+      run: |
+        echo "$CREDS" > tomcat.env
+        set -a
+        source tomcat.env
+        set +a
+
+    - name: Prepare SSH Key
+      env:
+        PEM_KEY: ${{ secrets.PEM_CRED }}
+      run: |
+        echo "$PEM_KEY" > server.pem
+        chmod 600 server.pem
+
+    - name: Deploy WAR to Tomcat
+      run: |
+        WAR_FILE=$(ls target/*.war | head -n 1)
+        scp -i server.pem -o StrictHostKeyChecking=no "$WAR_FILE" ubuntu@54.242.176.6:/tmp/app.war
+        ssh -i server.pem -o StrictHostKeyChecking=no ubuntu@54.242.176.6 <<EOF
+        sudo mv /tmp/app.war /opt/tomcat/webapps/JavaWebApp.war
+        sudo systemctl restart tomcat
+        EOF
