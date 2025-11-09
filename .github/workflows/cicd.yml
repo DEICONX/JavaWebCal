@@ -12,85 +12,69 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Checkout repo
-      - name: Checkout
-        uses: actions/checkout@v4
+    - name: Checkout
+      uses: actions/checkout@v4
 
-      # Set up JDK 17
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          java-version: '17'
-          distribution: 'temurin'
-          cache: 'maven'
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        cache: 'maven'
 
-      # Build & Test
-      - name: Build & Test
-        run: mvn -B clean verify
+    - name: Build & Test
+      run: mvn -B clean verify
 
-      # SonarQube Analysis
-      - name: SonarQube Analysis
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: |
-          if [ -z "$SONAR_TOKEN" ]; then
-            echo "ERROR: SONAR_TOKEN secret missing!" >&2
-            exit 1
-          fi
-          mvn -B sonar:sonar \
-            -Dsonar.login="$SONAR_TOKEN" \
-            -Dsonar.host.url="http://3.83.229.38:9000"
+    # ---- SONARQUBE ANALYSIS ----
+    - name: SonarQube Analysis
+      env:
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      run: |
+        if [ -z "${SONAR_TOKEN}" ]; then
+          echo "ERROR: SONAR_TOKEN secret missing." >&2
+          exit 1
+        fi
+        mvn -B sonar:sonar -Dsonar.login="${SONAR_TOKEN}" -Dsonar.host.url="http://3.83.229.38:9000"
 
-      # Configure Maven settings for Nexus
-      - name: Configure Maven settings.xml
-        env:
-          NEXUS_USERNAME: ${{ secrets.NEXUS_USERNAME }}
-          NEXUS_PASSWORD: ${{ secrets.NEXUS_PASSWORD }}
-        run: |
-          mkdir -p ~/.m2
-          cat > ~/.m2/settings.xml <<EOF
-<settings>
-  <servers>
-    <server>
-      <id>JAVA</id>
-      <username>${NEXUS_USERNAME}</username>
-      <password>${NEXUS_PASSWORD}</password>
-    </server>
-  </servers>
-</settings>
-EOF
+    # ---- NEXUS DEPLOY ----
+    - name: Deploy to Nexus
+      env:
+        NEXUS_USERNAME: ${{ secrets.NEXUS_USERNAME }}
+        NEXUS_PASSWORD: ${{ secrets.NEXUS_PASSWORD }}
+      run: |
+        if [ -z "${NEXUS_USERNAME}" ] || [ -z "${NEXUS_PASSWORD}" ]; then
+          echo "Skipping Nexus deploy: credentials missing"
+          exit 0
+        fi
+        mvn -B deploy -DrepositoryId=JAVA -Durl=http://98.84.152.62:8081/repository/JAVA/ -Dnexus.username=${NEXUS_USERNAME} -Dnexus.password=${NEXUS_PASSWORD}
 
-      # Deploy to Nexus
-      - name: Deploy to Nexus
-        run: mvn -B deploy
+    # ---- TOMCAT DEPLOY ----
+    - name: Deploy WAR to Tomcat
+      env:
+        TOMCAT_USER: ${{ secrets.TOMCAT_USERNAME }}
+        TOMCAT_PASS: ${{ secrets.TOMCAT_PASSWORD }}
+        TOMCAT_HOST: 54.242.176.6
+        TOMCAT_CONTEXT_PATH: /JavaWebApp
+      run: |
+        WAR_FILE=$(ls target/*.war | head -n1)
+        if [ -z "$WAR_FILE" ]; then
+          echo "WAR file not found!" >&2
+          exit 1
+        fi
 
-      # Deploy WAR to Tomcat
-      - name: Deploy WAR to Tomcat
-        env:
-          TOMCAT_USER: ${{ secrets.TOMCAT_USERNAME }}
-          TOMCAT_PASS: ${{ secrets.TOMCAT_PASSWORD }}
-          TOMCAT_HOST: 54.242.176.6
-          TOMCAT_CONTEXT_PATH: /JavaWebApp
-        run: |
-          WAR_FILE=$(ls target/*.war | head -n1)
-          if [ -z "$WAR_FILE" ]; then
-            echo "WAR file not found!" >&2
-            exit 1
-          fi
+        # Undeploy if exists
+        curl -sS -u "${TOMCAT_USER}:${TOMCAT_PASS}" \
+          "http://${TOMCAT_HOST}:8080/manager/text/undeploy?path=${TOMCAT_CONTEXT_PATH}" || true
 
-          echo "Undeploying old WAR (if exists)..."
-          curl -sS -u "${TOMCAT_USER}:${TOMCAT_PASS}" \
-            "http://${TOMCAT_HOST}:8080/manager/text/undeploy?path=${TOMCAT_CONTEXT_PATH}" || true
+        # Deploy WAR
+        curl -sS -u "${TOMCAT_USER}:${TOMCAT_PASS}" \
+          --upload-file "$WAR_FILE" \
+          "http://${TOMCAT_HOST}:8080/manager/text/deploy?path=${TOMCAT_CONTEXT_PATH}&update=true"
 
-          echo "Deploying new WAR..."
-          curl -sS -u "${TOMCAT_USER}:${TOMCAT_PASS}" \
-            --upload-file "$WAR_FILE" \
-            "http://${TOMCAT_HOST}:8080/manager/text/deploy?path=${TOMCAT_CONTEXT_PATH}&update=true"
-
-      # Upload WAR artifact to GitHub
-      - name: Upload WAR artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: webapp-war
-          path: target/*.war
-          if-no-files-found: warn
+    # ---- Upload WAR artifact ----
+    - name: Upload WAR artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: webapp-war
+        path: target/*.war
+        if-no-files-found: warn
