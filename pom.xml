@@ -18,8 +18,9 @@
     <sonar.maven.plugin.version>4.0.0.4121</sonar.maven.plugin.version>
   </properties>
 
-  <dependencies>
-    <version>4.13.2</version>
+       <groupId>junit</groupId>
+      <artifactId>junit</artifactId>
+      <version>4.13.2</version>
       <scope>test</scope>
     </dependency>
 
@@ -27,15 +28,8 @@
       <groupId>javax.servlet</groupId>
       <artifactId>javax.servlet-api</artifactId>
       <version>3.1.0</version>
-      <scope>provided</scope>
-    </dependency>
-  </dependencies>
-
-  <build>
-    <plugins>
-      <!-- Compiler plugin -->
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
+     -plugin</artifactId>
+        <version>${maven.compiler.plugin.version}</version>
         <configuration>
           <source>17</source>
           <target>17</target>
