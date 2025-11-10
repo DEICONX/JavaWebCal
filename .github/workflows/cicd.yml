@@ -1,13 +1,23 @@
-name: Java CI/CD - SonarQube, Nexus, Tomcat (Full Clean Deploy + Slack Alerts)
+name: Java CI/CD - SonarQube, Nexus, Tomcat (Full Clean Deploy)
 
-on SONAR_HOST_URL: http://98.93.153.62:9000on:
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+
+    env:
+      SONAR_HOST_URL: http://98.93.153.62:9000
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
       NEXUS_URL: http://54.196.221.116:8081
       NEXUS_REPO: JAVA
       NEXUS_GROUP: com/web/cal
       NEXUS_ARTIFACT: webapp-add
       TOMCAT_URL: http://54.173.136.70:8080/manager/text
-      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
 
     steps:
       - name: 📦 Checkout Code
@@ -103,21 +113,3 @@ on SONAR_HOST_URL: http://98.93.153.62:9000on:
           else
             echo "⚠️ App returned status $STATUS"
             exit 1
-
-      - name: 📣 Notify Slack
-        if: always()
-        run: |
-          STATUS="${{ job.status }}"
-          curl -X POST -H 'Content-type: application/json' --data "{
-            \"text\": \"🚀 Java CI/CD Pipeline finished with status: $STATUS\"
-
-  push:
-    branches:
-      - main
-  workflow_dispatch:
-
-jobs:
-  build-deploy:
-    runs-on: ubuntu-latest
-
-    env:
