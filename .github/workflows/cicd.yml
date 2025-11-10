@@ -110,7 +110,7 @@ jobs:
 
         echo "✅ Deployment successful! Application updated."
 
-    # 7️⃣ Optional: Verify App Health
+    # 7️⃣ Verify App Health
     - name: 🔎 Verify Deployment
       run: |
         sleep 10
@@ -120,3 +120,4 @@ jobs:
         else
           echo "⚠️ App returned status $STATUS"
           exit 1
+        fi
