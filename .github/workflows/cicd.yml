@@ -14,7 +14,7 @@ jobs:
       SONAR_HOST_URL: http://98.93.153.62:9000
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
       NEXUS_URL: http://54.196.221.116:8081
-      NEXUS_REPO: JAVA
+      NEXUS_REPO: maven-releases
       NEXUS_GROUP: com/web/cal
       NEXUS_ARTIFACT: webapp-add
       TOMCAT_URL: http://54.173.136.70:8080/manager/text
